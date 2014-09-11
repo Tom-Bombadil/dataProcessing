@@ -1,5 +1,4 @@
 library(ncdf4)
-library(ncdf)
 library(maptools)
 library(raster)
 
@@ -11,49 +10,7 @@ catchments <- readShapePoly ( "C:/KPONEIL/gis/nhdPlusV2/stateCatchments/MA_Catch
 
 NCDF <- nc_open('C:/KPONEIL/temporary/dayl_1980.nc4')    #netcdf
 
-
-# Variable count
-start1 = c(1,1)
-latcount <- c(NCDF$var$lat$varsize[1], NCDF$var$lat$varsize[2])
-loncount <- c(NCDF$var$lon$varsize[1], NCDF$var$lon$varsize[2])
-YDcount  <- NCDF$var$yearday$varsize
-
-# Read in variables
-lat = ncvar_get ( nc=NCDF, varid="lat", start = start1, count = latcount )
-lon = ncvar_get ( nc=NCDF, varid="lon", start = start1, count = loncount )
-dOY = ncvar_get ( nc=NCDF, varid="yearday",             start = 1,      count = YDcount  )
-
-# Correction for Daymet doy which starts at 0.
-dOY <- dOY + 1  
-
-
-
-EXT <- extent(catchments)
-
-matInd <- which(lat >= EXT@ymin & lat <= EXT@ymax & lon >= EXT@xmin & lon <= EXT@xmax, arr.ind = T)
-
-minRow <- min(matInd[,1])
-maxRow <- max(matInd[,1])
-minCol <- min(matInd[,2])
-maxCol <- max(matInd[,2])
-
-
-countx = maxRow - minRow + 1 
-county = maxCol - minCol + 1 
-
-z = ncvar_get( NCDF, "dayl", start=c(minRow,minCol, 1), count=c(countx,county,365) )
-tLat = ncvar_get( NCDF, "lat", start=c(minRow,minCol), count=c(countx,county) )
-tLon = ncvar_get( NCDF, "lon", start=c(minRow,minCol), count=c(countx,county) )
-
-
-# Check that the points line up with catchment layer:
-
-plot(tLon, tLat)
-polygon(catchments)
-
-
-
-catchments <- readShapePoly ( "C:/KPONEIL/gis/nhdPlusV2/stateCatchments/MA_NW.shp", proj4string=CRS(proj4.NHD))
+#catchments <- readShapePoly ( "C:/KPONEIL/gis/nhdPlusV2/stateCatchments/MA_NW.shp", proj4string=CRS(proj4.NHD))
 #NCDF <- open.ncdf('F:/KPONEIL/SourceData/climate/DAYMET/unzipped/Daily/11934_1980/dayl.nc')    #netcdf
 
 
@@ -64,14 +21,16 @@ catchmentShapefile <- catchments
 projectionString <- CRS(proj4.NHD)
 
 
-
 spatialAverageDaymet2 <- function(NetCDF, variable, catchmentShapefile, projectionString){
+  
+  require(raster)
+  require(ncdf4)
   
   # Index the portion of the NetCDF covered by the shapefile
   # --------------------------------------------------------
   # Read in variables
-  lat = ncvar_get ( nc=NetCDF, varid="lat", start = start1, count = c(NetCDF$var$lat$varsize[1], NetCDF$var$lat$varsize[2]) )
-  lon = ncvar_get ( nc=NetCDF, varid="lon", start = start1, count = c(NetCDF$var$lon$varsize[1], NetCDF$var$lon$varsize[2]) )
+  lat = ncvar_get ( nc=NetCDF, varid="lat", start = c(1,1), count = c(NetCDF$var$lat$varsize[1], NetCDF$var$lat$varsize[2]) )
+  lon = ncvar_get ( nc=NetCDF, varid="lon", start = c(1,1), count = c(NetCDF$var$lon$varsize[1], NetCDF$var$lon$varsize[2]) )
  
   # Get the extent of the shapefile
   EXT <- extent(catchments)
@@ -101,27 +60,18 @@ spatialAverageDaymet2 <- function(NetCDF, variable, catchmentShapefile, projecti
   # Correction for Daymet doy which starts at 0.
   dOY <- dOY + 1 
   
+  # Get the year for output
+  YEAR <- ncatt_get( NCDF, varid = 0, attname="start_year")$value
   
+  # Index and replace missval
+  # -------------------------
+  for( h in 1:length(NCDF$var) ){
+    if ( NCDF$var[[h]]$name == variable ) {varIndex <- h}
+  }
+  missingValue <- NCDF$var[[varIndex]]$missval
   
-  par(mar=c(1,1,1,1))
-  plot(catchments)
-  
-  rect(min(lon), min(lat), max(lon), max(lat))
-       
-       , density = NULL, angle = 45,
-       col = NA, border = NULL, lty = par("lty"), lwd = par("lwd"),
-       ...)
-  
-  
-  lines(min(lon), c(min(lat):max(lat)) )
-  lines(max(lon), min(lat):max(lat) )
-  
-  lines(min(lon):max(lon), min(lat) )
-  lines(min(lon):max(lon), min(lat) )
-  points(lon, lat)
-  
-  
-  
+  # Replace
+  var <- replace(var, var == missingValue, NA)
   
   # Prep the points for indexing
   # ----------------------------
@@ -153,7 +103,7 @@ spatialAverageDaymet2 <- function(NetCDF, variable, catchmentShapefile, projecti
   fids <- catchmentShapefile@data$FEATUREID
   
   # Replace with means
-  varMeans <- data.frame(dOY = dOY)
+  varMeans <- data.frame(dOY = dOY, year = YEAR, variable = variable)
   
   for ( i in seq_along(fids) ){
     
@@ -205,6 +155,10 @@ spatialAverageDaymet2 <- function(NetCDF, variable, catchmentShapefile, projecti
 }
 
 
+
+#
+# Need to rework to long format maybe???
+#
 beg <- proc.time()[3]
 testOut <- spatialAverageDaymet2(NetCDF = NCDF, variable = "dayl", catchmentShapefile = catchments, projectionString = CRS(proj4.NHD))
 end <- proc.time()[3]
@@ -212,6 +166,31 @@ end <- proc.time()[3]
 runTime <- (end - beg)/3600
 
 # Takes about 4 minutes for one variable for 1 year in MA (11483 catchments)
+
+
+
+
+
+
+par(mar=c(1,1,1,1))
+plot(catchments)
+
+rect(min(lon), min(lat), max(lon), max(lat))
+
+, density = NULL, angle = 45,
+col = NA, border = NULL, lty = par("lty"), lwd = par("lwd"),
+...)
+
+
+lines(min(lon), c(min(lat):max(lat)) )
+lines(max(lon), min(lat):max(lat) )
+
+lines(min(lon):max(lon), min(lat) )
+lines(min(lon):max(lon), min(lat) )
+points(lon, lat)
+
+
+
 
 
 

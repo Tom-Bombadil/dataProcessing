@@ -2,7 +2,7 @@ library(dplyr)
 library(RSQLite)
 
 
-setwd('C:/KPONEIL/GitHub/personal/DATAing/daymet')
+setwd('C:/KPONEIL/GitHub/personal/dataProcessing/daymet')
 
 ## Create the database
 #my_db <- src_sqlite("test.sqlite3", create = T)
