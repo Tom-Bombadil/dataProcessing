@@ -1,0 +1,61 @@
+# Daymet Download & Processing
+
+## This script completes the following:
+
+1. Download Daymet climate data (NetCDF-4 format) mosaics across North America
+2. Spatially averages the climate records for NHDplus Version 2 Catchments
+3. Writes the data into an SQLite database
+
+---
+## Enter Inputs
+```{r Inputs}
+
+START_YEAR <- 1980
+END_YEAR <- 2013 
+VARIABLES <- c('tmax', 'tmin', 'prcp', 'dayl', 'srad', 'vp', 'swe')
+DAYMET_FOLDER <- 'F:/KPONEIL/SourceData/climate/DAYMET/mosaics'
+
+CATCHMENTS
+
+proj4.NHD  <- "+proj=longlat +ellps=GRS80 +datum=NAD83 +no_defs"
+
+
+proj4.Daymet     <- "+proj=lcc +lat_1=25 +lat_2=60 +lat_0=42.5 +lon_0=-100 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs "
+#proj4.NHDLambert <- "+proj=lcc +lat_1=25 +lat_2=60 +lat_0=42.5 +lon_0=-100 +x_0=0 +y_0=0 +ellps=GRS80 +datum=NAD83  +units=m +no_defs "
+
+
+lat_lon <- CRS("+init=epsg:4326")
+
+
+day <- CRS(proj4.Daymet)
+
+test <- spTransform(masterCoordSpPts,CRS(proj4.NHD))
+
+
+
+location <- SpatialPoints(cbind(lon1,lat1), lat_lon)
+location_LCC <- spTransform(location,LCC)
+
+CRS(proj4string(catchments))
+
+
+
+```
+
+
+
+```{r Download Daymet}
+
+daymetMosaicDownload(startYear = START_YEAR, 
+                     endYear = END_YEAR, 
+                     variables = VARIABLES, 
+                     destinationFolder = DAYMET_FOLDER)
+```
+
+```{r Average Daymet by catchment}
+
+patialAverageDaymet(NetCDF = NCDF, variable = "dayl", catchmentShapefile = catchments, projectionString = CRS(proj4.NHD))
+
+
+
+```

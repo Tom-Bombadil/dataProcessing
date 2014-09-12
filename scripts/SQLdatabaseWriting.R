@@ -12,7 +12,11 @@ my_db <- src_sqlite("dayTest2", create = T)
 
 # Connecting to a table and writing to it:
 db <- dbConnect(SQLite(), "dayTest2")
-dbWriteTable(db, "data", testOut, append = FALSE)
+dbWriteTable(conn = db, name = "data", value = testOut, append = FALSE)
+
+
+
+dbWriteTable(conn = db, name = variable, value = testOut, append = FALSE)
 
 
 

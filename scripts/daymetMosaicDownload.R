@@ -1,13 +1,4 @@
 
-beg <- proc.time()[3]
-daymetMosaicDownload(startYear = 1980, 
-                     endYear = 2013, 
-                     variables = c('tmax', 'tmin', 'prcp', 'dayl', 'srad', 'vp', 'swe'), 
-                     destinationFolder = 'F:/KPONEIL/SourceData/climate/DAYMET/mosaics')
-end <- proc.time()[3]
-runTime <- (end - beg)/3600
-
-
 daymetMosaicDownload <- function(startYear, endYear, variables, destinationFolder){
 
   # Loop through years
@@ -29,4 +20,12 @@ daymetMosaicDownload <- function(startYear, endYear, variables, destinationFolde
   }# end year loop
 }# end function
 
+
+beg <- proc.time()[3]
+daymetMosaicDownload(startYear = 1980, 
+                     endYear = 2013, 
+                     variables = c('tmax', 'tmin', 'prcp', 'dayl', 'srad', 'vp', 'swe'), 
+                     destinationFolder = 'F:/KPONEIL/SourceData/climate/DAYMET/mosaics')
+end <- proc.time()[3]
+runTime <- (end - beg)/3600
 

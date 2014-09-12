@@ -1,3 +1,5 @@
+rm(list = ls())
+
 library(ncdf4)
 library(maptools)
 library(raster)
@@ -6,7 +8,6 @@ proj4.NHD  <- "+proj=longlat +ellps=GRS80 +datum=NAD83 +no_defs"
 
 # Catchments shapefile
 catchments <- readShapePoly ( "C:/KPONEIL/gis/nhdPlusV2/stateCatchments/MA_Catchment.shp", proj4string=CRS(proj4.NHD))
-
 
 NCDF <- nc_open('C:/KPONEIL/temporary/dayl_1980.nc4')    #netcdf
 
@@ -21,7 +22,7 @@ catchmentShapefile <- catchments
 projectionString <- CRS(proj4.NHD)
 
 
-spatialAverageDaymet2 <- function(NetCDF, variable, catchmentShapefile, projectionString){
+spatialAverageDaymet <- function(NetCDF, variable, catchmentShapefile, projectionString){
   
   require(raster)
   require(ncdf4)
@@ -34,6 +35,11 @@ spatialAverageDaymet2 <- function(NetCDF, variable, catchmentShapefile, projecti
  
   # Get the extent of the shapefile
   EXT <- extent(catchments)
+  
+  #
+  # spTransform these to the daymet projection
+  #
+  
   
   # Positions in the array of coordinates within the shapefile extent
   matInd <- which(lat >= EXT@ymin & lat <= EXT@ymax & lon >= EXT@xmin & lon <= EXT@xmax, arr.ind = T)
@@ -103,7 +109,12 @@ spatialAverageDaymet2 <- function(NetCDF, variable, catchmentShapefile, projecti
   fids <- catchmentShapefile@data$FEATUREID
   
   # Replace with means
-  varMeans <- data.frame(dOY = dOY, year = YEAR, variable = variable)
+  varMeans <- as.data.frame(matrix(nrow = length(fids)*length(dOY), ncol = 4))
+  names(varMeans) <- c('FEATUREID', 'Year', 'DayOfYear', 'Value')
+  #varMeans <- data.frame(dOY = dOY, year = YEAR)
+  
+  varMeans$Year <- YEAR
+  varMeans$DayOfYear <- rep(dOY, length(fids))
   
   for ( i in seq_along(fids) ){
     
@@ -147,7 +158,13 @@ spatialAverageDaymet2 <- function(NetCDF, variable, catchmentShapefile, projecti
     ifelse( length(toBeAvg) > 1, R <- rowMeans(tempVar[,toBeAvg], na.rm = TRUE, dims = 1),  R <- tempVar[,2] )
     
     # Add means to data.frame
-    varMeans[,paste(fids[i])] <- R
+    #varMeans[,paste(fids[i])] <- R
+    
+    
+    dfRows <- c( (1 + length(dOY)*(i-1)) : (length(dOY) + length(dOY)*(i-1)) )
+    
+    varMeans$FEATUREID[dfRows] <- fids[i]
+    varMeans$Value    [dfRows] <- R 
   }
   
   # Return the records
@@ -160,16 +177,75 @@ spatialAverageDaymet2 <- function(NetCDF, variable, catchmentShapefile, projecti
 # Need to rework to long format maybe???
 #
 beg <- proc.time()[3]
-testOut <- spatialAverageDaymet2(NetCDF = NCDF, variable = "dayl", catchmentShapefile = catchments, projectionString = CRS(proj4.NHD))
+testOut <- spatialAverageDaymet(NetCDF = NCDF, variable = "dayl", catchmentShapefile = catchments, projectionString = CRS(proj4.NHD))
 end <- proc.time()[3]
 
 runTime <- (end - beg)/3600
 
-# Takes about 4 minutes for one variable for 1 year in MA (11483 catchments)
 
 
 
 
+
+
+for ( file in seq_along(files) )
+
+
+
+dbWriteTable(conn = db, name = variable, value = testOut, append = FALSE)
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Takes about 6.5 minutes for one variable for 1 year in MA (11483 catchments)
+
+
+#Add these sections into the function....
+#   - align projections for overlay
+#   - plot to check matching areas
+
+########################################################################
+#                          REPROJECTIING
+########################################################################
+# grab the projection string. This is a LCC projection.
+LCC <- CRS(proj4string(tile_outlines))
+
+# extract tile IDs (vector shape) and the DAYMET IDs associated
+# with them
+grid_codes <- tile_outlines@data
+
+# if argument 3 or 4 are the default grab only the tile
+# of the first coordinate set, if 4 arguments are given
+# extract all tile numbers within this region of interest
+if ( is.na(lat2) | is.na(lon2)){
+  
+  # create coordinate pairs, with original coordinate  system
+  location <- SpatialPoints(cbind(lon1,lat1), lat_lon)
+  
+  # convert to Lambert Conformal Conic (LCC)
+  location_LCC <- spTransform(location,LCC)
+  
+  # extract tile for this location
+  tiles <- over(location_LCC,tile_outlines)$GRIDCODE
+  
+  # do not continue if outside range
+  if (is.na(tiles)){
+    stop("Your defined range is outside DAYMET coverage, check your coordinate values!")
+  }
+  
+
+########################################################################
+#                     PLOTTING TO CHECK
+########################################################################
 
 
 par(mar=c(1,1,1,1))
