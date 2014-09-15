@@ -4,6 +4,7 @@ library(ncdf4)
 library(maptools)
 library(raster)
 
+
 proj4.NHD  <- "+proj=longlat +ellps=GRS80 +datum=NAD83 +no_defs"
 
 # Catchments shapefile
@@ -14,18 +15,24 @@ NCDF <- nc_open('C:/KPONEIL/temporary/dayl_1980.nc4')    #netcdf
 #catchments <- readShapePoly ( "C:/KPONEIL/gis/nhdPlusV2/stateCatchments/MA_NW.shp", proj4string=CRS(proj4.NHD))
 #NCDF <- open.ncdf('F:/KPONEIL/SourceData/climate/DAYMET/unzipped/Daily/11934_1980/dayl.nc')    #netcdf
 
+proj4.Daymet  <- "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs"
+proj4.NHD  <- "+proj=longlat +ellps=GRS80 +datum=NAD83 +no_defs"
+
+
 
 
 NetCDF <- NCDF
 vraiable <- "dayl"
-catchmentShapefile <- catchments
+catchmentsShapefile <- catchments
 projectionString <- CRS(proj4.NHD)
 
 
-spatialAverageDaymet <- function(NetCDF, variable, catchmentShapefile, projectionString){
+spatialAverageDaymet <- function(NetCDF, variable, catchmentsShapefile, proj4.NHD, proj4.Daymet){
   
   require(raster)
   require(ncdf4)
+  require(sp)
+  require(rgdal)
   
   # Index the portion of the NetCDF covered by the shapefile
   # --------------------------------------------------------
@@ -33,13 +40,11 @@ spatialAverageDaymet <- function(NetCDF, variable, catchmentShapefile, projectio
   lat = ncvar_get ( nc=NetCDF, varid="lat", start = c(1,1), count = c(NetCDF$var$lat$varsize[1], NetCDF$var$lat$varsize[2]) )
   lon = ncvar_get ( nc=NetCDF, varid="lon", start = c(1,1), count = c(NetCDF$var$lon$varsize[1], NetCDF$var$lon$varsize[2]) )
  
+  # Transform the shapefile to be in the Daymet projection
+  catchmentsShapefilePROJ <- spTransform(catchmentsShapefile, CRS(proj4.Daymet), class = "SpatialPolygonsDataFrame")
+  
   # Get the extent of the shapefile
-  EXT <- extent(catchments)
-  
-  #
-  # spTransform these to the daymet projection
-  #
-  
+  EXT <- extent(catchmentsShapefilePROJ)
   
   # Positions in the array of coordinates within the shapefile extent
   matInd <- which(lat >= EXT@ymin & lat <= EXT@ymax & lon >= EXT@xmin & lon <= EXT@xmax, arr.ind = T)
@@ -54,7 +59,7 @@ spatialAverageDaymet <- function(NetCDF, variable, catchmentShapefile, projectio
   countx = maxRow - minRow + 1 
   county = maxCol - minCol + 1 
   
-  # Remove the full NetCDF lat/lon coordinates. These will be replaced with the 
+  # Remove the full NetCDF lat/lon coordinates. These will be replaced with the indexed set of coords
   rm(lat,lon)
   
   # Read the variables for the subsetted netcdf
@@ -90,11 +95,11 @@ spatialAverageDaymet <- function(NetCDF, variable, catchmentShapefile, projectio
   masterCoordSpPts   <- SpatialPoints(masterCoords, proj4string = projectionString)
   
   # Generate list of catchment centroids
-  centroids <- data.frame(catchmentShapefile@data$FEATUREID, coordinates(catchmentShapefile) )
+  centroids <- data.frame(catchmentsShapefilePROJ@data$FEATUREID, coordinates(catchmentsShapefilePROJ) )
   names(centroids) <- c('FEATUREID', 'LON', 'LAT')
   
   # Overlay points on catchment shapefile
-  overPoints <- over(masterCoordSpPts, catchmentShapefile)
+  overPoints <- over(masterCoordSpPts, catchmentsShapefilePROJ)
   
   # Generate a list of the points and which 
   pointsInside <- overPoints[which(!is.na(overPoints$FEATUREID)),]
@@ -106,12 +111,13 @@ spatialAverageDaymet <- function(NetCDF, variable, catchmentShapefile, projectio
   pointsInside$Latitude  <- ptsInCoords$y
   
   # List of FeatureIDs to average over
-  fids <- catchmentShapefile@data$FEATUREID
+  fids <- catchmentsShapefilePROJ@data$FEATUREID
   
   # Replace with means
   varMeans <- as.data.frame(matrix(nrow = length(fids)*length(dOY), ncol = 4))
   names(varMeans) <- c('FEATUREID', 'Year', 'DayOfYear', 'Value')
   #varMeans <- data.frame(dOY = dOY, year = YEAR)
+  
   
   varMeans$Year <- YEAR
   varMeans$DayOfYear <- rep(dOY, length(fids))
@@ -177,7 +183,11 @@ spatialAverageDaymet <- function(NetCDF, variable, catchmentShapefile, projectio
 # Need to rework to long format maybe???
 #
 beg <- proc.time()[3]
-testOut <- spatialAverageDaymet(NetCDF = NCDF, variable = "dayl", catchmentShapefile = catchments, projectionString = CRS(proj4.NHD))
+testOut <- spatialAverageDaymet(NetCDF = NCDF, 
+                                variable = "dayl", 
+                                catchmentsShapefile = catchments, 
+                                proj4.NHD = CRS(PROJ4.NHD),
+                                proj4.Daymet = CRS(PROJ4.DAYMET))
 end <- proc.time()[3]
 
 runTime <- (end - beg)/3600
@@ -318,7 +328,7 @@ dOY <- dOY + 1
 
 
 
-testCentroid <- function(NetCDF, variable, catchmentShapefile){  #, projectionString
+testCentroid <- function(NetCDF, variable, catchmentsShapefile){  #, projectionString
   
   require(raster)
   
@@ -341,7 +351,7 @@ testCentroid <- function(NetCDF, variable, catchmentShapefile){  #, projectionSt
   colnames(masterCoords) <- c("Longitude", "Latitude")
   masterCoords <- as.data.frame(masterCoords)
   
-  EXT <- extent(catchmentShapefile)
+  EXT <- extent(catchmentsShapefile)
   masterCoords <- masterCoords[which(masterCoords$Latitude  >= EXT@ymin & 
                                      masterCoords$Latitude  <= EXT@ymax & 
                                      masterCoords$Longitude >= EXT@xmin & 
@@ -349,7 +359,7 @@ testCentroid <- function(NetCDF, variable, catchmentShapefile){  #, projectionSt
   
   masterCoordsMatrix <- as.matrix(masterCoords)
 
-  centroids <- data.frame(catchmentShapefile@data$FEATUREID, coordinates(catchmentShapefile))
+  centroids <- data.frame(catchmentsShapefile@data$FEATUREID, coordinates(catchmentsShapefile))
   names(centroids) <- c('FEATUREID', 'Longitude', 'Latitude')
     
   # Replace with means
@@ -382,7 +392,7 @@ testCentroid <- function(NetCDF, variable, catchmentShapefile){  #, projectionSt
 
 
 beg <- proc.time()[3]
-testOut <- testCentroid(NetCDF = NCDF, variable = "dayl", catchmentShapefile = catchments)
+testOut <- testCentroid(NetCDF = NCDF, variable = "dayl", catchmentsShapefile = catchments)
 end <- proc.time()[3]
 
 runTime <- (end - beg)/3600
@@ -396,12 +406,12 @@ runTime <- (end - beg)/3600
 
 NetCDF <- NCDF
 vraiable <- "dayl"
-catchmentShapefile <- catchments
+catchmentsShapefile <- catchments
 projectionString <- CRS(proj4.NHD)
 
 
 
-spatialAverageDaymet <- function(NetCDF, variable, catchmentShapefile, projectionString){
+spatialAverageDaymet <- function(NetCDF, variable, catchmentsShapefile, projectionString){
   
   # Variable count
   start1 = c(1,1)
@@ -423,7 +433,7 @@ spatialAverageDaymet <- function(NetCDF, variable, catchmentShapefile, projectio
   colnames(masterCoords) <- c("Longitude", "Latitude")
   masterCoords <- as.data.frame(masterCoords)
   
-  EXT <- extent(catchmentShapefile)
+  EXT <- extent(catchmentsShapefile)
   masterCoords <- masterCoords[which(masterCoords$Latitude  >= EXT@ymin & 
                                        masterCoords$Latitude  <= EXT@ymax & 
                                        masterCoords$Longitude >= EXT@xmin & 
@@ -433,17 +443,17 @@ spatialAverageDaymet <- function(NetCDF, variable, catchmentShapefile, projectio
   
   a <- SpatialPoints(masterCoords, proj4string = projectionString)
   
-  centroids <- data.frame(catchmentShapefile@data$FEATUREID, coordinates(catchmentShapefile) )
+  centroids <- data.frame(catchmentsShapefile@data$FEATUREID, coordinates(catchmentsShapefile) )
   names(centroids) <- c('FEATUREID', 'LON', 'LAT')
   
   #######
-  overPoints <- over(a, catchmentShapefile)
+  overPoints <- over(a, catchmentsShapefile)
   
   pointsInside <- overPoints[which(!is.na(overPoints$FEATUREID)),]
   
   pointsInside$index <- as.numeric(row.names(pointsInside))
   
-  fids <- catchmentShapefile@data$FEATUREID
+  fids <- catchmentsShapefile@data$FEATUREID
   
   # Replace with means
   varMeans <- data.frame(dOY = dOY)
@@ -502,7 +512,7 @@ spatialAverageDaymet <- function(NetCDF, variable, catchmentShapefile, projectio
 
 
 beg <- proc.time()[3]
-spatialAverageDaymet(NetCDF = NCDF, variable = "dayl", catchmentShapefile = catchments, projectionString = CRS(proj4.NHD))
+spatialAverageDaymet(NetCDF = NCDF, variable = "dayl", catchmentsShapefile = catchments, projectionString = CRS(proj4.NHD))
 end <- proc.time()[3]
 
 runTime <- (end - beg)/3600
@@ -516,13 +526,13 @@ runTime <- (end - beg)/3600
 
 
 
-catchmentShape <- as(catchmentShapefile[catchmentShapefile$FEATUREID %in% fids[1:10],], "SpatialPolygons")
+catchmentShape <- as(catchmentsShapefile[catchmentsShapefile$FEATUREID %in% fids[1:10],], "SpatialPolygons")
 
 
 inside <- as.data.frame(a[!is.na(over(a, catchmentShape)),])
 
 #######
-overPoints <- over(a, catchmentShapefile)
+overPoints <- over(a, catchmentsShapefile)
 
 pointsInside <- overPoints[which(!is.na(overPoints$FEATUREID)),]
 
@@ -533,7 +543,7 @@ temp <- pointsInside[which(pointsInside$FEATUREID == fids[i]),]
 
 
 
-plotTestPoly <- as(catchmentShapefile[catchmentShapefile$FEATUREID == 5849340,], "SpatialPolygons")
+plotTestPoly <- as(catchmentsShapefile[catchmentsShapefile$FEATUREID == 5849340,], "SpatialPolygons")
 
 
 locs <- as.data.frame(a[temp$index,])
@@ -547,7 +557,7 @@ a[]temp$index,
 
 
 
-catchmentShape <- catchmentShapefile[catchmentShapefile$FEATUREID %in% fids[1:10],]
+catchmentShape <- catchmentsShapefile[catchmentsShapefile$FEATUREID %in% fids[1:10],]
 
 test <- over(a, catchmentShape)
 

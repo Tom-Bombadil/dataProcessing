@@ -4,11 +4,10 @@ library(ncdf4)
 library(maptools)
 library(raster)
 
+
+#proj4.Daymet     <- "+proj=lcc +lat_1=25 +lat_2=60 +lat_0=42.5 +lon_0=-100 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs +ellps=WGS84 +towgs84=0,0,0"
+
 proj4.NHD  <- "+proj=longlat +ellps=GRS80 +datum=NAD83 +no_defs"
-
-proj4.Daymet     <- "+proj=lcc +lat_1=25 +lat_2=60 +lat_0=42.5 +lon_0=-100 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs +ellps=WGS84 +towgs84=0,0,0"
-
-
 proj4.Daymet  <- "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs"
 
 
@@ -20,6 +19,28 @@ proj4.Daymet  <- "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs"
 #
 
 test2 <- spTransform(catchments, CRS(proj4string(proj4.Daymet)))
+
+
+NetCDF <- NCDF
+# Read in variables
+lat = ncvar_get ( nc=NetCDF, varid="lat", start = c(1,1), count = c(NetCDF$var$lat$varsize[1], NetCDF$var$lat$varsize[2]) )
+lon = ncvar_get ( nc=NetCDF, varid="lon", start = c(1,1), count = c(NetCDF$var$lon$varsize[1], NetCDF$var$lon$varsize[2]) )
+
+lat <- lat[1:100,1:100]
+lon <- lon[1:100,1:100]
+
+
+masterCoords <- as.data.frame(cbind( as.vector(lon), as.vector(lat)))
+coordsNHD   <- SpatialPointsDataFrame(masterCoords, data = masterCoords, proj4string = CRS(proj4.NHD))
+coordsDay   <- SpatialPointsDataFrame(masterCoords, data = masterCoords, proj4string = CRS(proj4.Daymet))
+coordsTransform <- spTransform(coordsNHD, CRS(proj4.Daymet), method = "SpatialPointsDataFrame")
+
+
+setwd('C:/KPONEIL/workspace/Rprojections')
+writeOGR(coordsNHD,  ".", layer = "coordsNHD", driver = "ESRI Shapefile")
+writeOGR(coordsDay,  ".", layer = "coordsDay", driver = "ESRI Shapefile")
+writeOGR(coordsTransform,  ".", layer = "coordsTransform", driver = "ESRI Shapefile")
+
 
 
 

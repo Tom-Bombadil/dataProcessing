@@ -7,7 +7,7 @@ setwd('C:/KPONEIL/GitHub/personal/dataProcessing/daymet')
 
 
 
-my_db <- src_sqlite("dayTest2", create = T)
+my_db <- src_sqlite("dayTest", create = T)
 
 
 # Connecting to a table and writing to it:
