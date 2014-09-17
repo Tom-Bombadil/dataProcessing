@@ -14,14 +14,21 @@ daymetMosaicDownload <- function(startYear, endYear, variables, destinationFolde
       # Name the output file
       outFile <- file.path(destinationFolder, paste0(var, '_', year, '.nc4'))
       
-      # Download the file
-      download.file(url = address, destfile = outFile, quiet = FALSE, mode = 'wb')
+      # Don't download if the file already exists
+      if(!file.exists(outFile)){
       
-      end <- proc.time()[3]
-      runTime <- (end - beg)/3600
-      
-      print(paste0("Download took ", runTime, " hours.") )
-      
+        # Download the file
+        download.file(url = address, destfile = outFile, quiet = FALSE, mode = 'wb')
+        
+        # Time download
+        end <- proc.time()[3]
+        runTime <- (end - beg)/3600
+        
+        # Print download time
+        print(paste0("Download took ", runTime, " hours.") )
+        
+      } else(print(paste0("File '", outFile ,"' already exists in download directory. Please delete before downloading.")) )
+
     }# end variable loop
   }# end year loop
 }# end function
