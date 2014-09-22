@@ -30,14 +30,14 @@ PROJ4.NHD     <- "+proj=longlat +ellps=GRS80 +datum=NAD83 +no_defs"
 PROJ4.DAYMET  <- "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs"
 
 # Temporal range
-START_YEAR <- 1980
-END_YEAR <- 2013 
+START_YEAR <- 1993
+END_YEAR <- 1994
 
 # Variables
 VARIABLES <- c('tmax', 'tmin', 'prcp', 'dayl', 'srad', 'vp', 'swe')
 
 # Destination folder of the raw Daymet data
-DAYMET_DIRECTORY <- 'F:/KPONEIL/SourceData/climate/DAYMET'
+DAYMET_DIRECTORY <- 'C:/KPONEIL/rawData/daymet/mosaics'
 
 # Name of the database with Daymet data paired to NHDPlus catchments
 #DATABASE_NAME <- 'DaymetByNHDPlusCatchments'
@@ -56,10 +56,11 @@ source('C:/KPONEIL/GitHub/personal/dataProcessing/scripts/functions/spatialAvera
 ## Download the Daymet Mosaics
 ```{r Download Daymet}
 
+
 daymetMosaicDownload(startYear = START_YEAR,
                      endYear = END_YEAR,
                      variables = VARIABLES,
-                     destinationFolder = file.path(DAYMET_DIRECTORY, 'raw'))
+                     destinationFolder = file.path(DAYMET_DIRECTORY))
 ```
 
 ---
