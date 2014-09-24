@@ -3,7 +3,7 @@
 ## This script completes the following:
 
 1. Download Daymet climate data (NetCDF-4 format) mosaics across North America
-2. Spatially averages the climate records for NHDplus Version 2 Catchments
+2. Spatially averages the climate records for NHDplus Version 2 Catchments. Any point which falls within the outline of the catchment is included in the average. If no point falls inside the catchment, the point nearest to the catchment centroid is used.
 3. Writes the data into an SQLite database
 
 ---
@@ -16,9 +16,7 @@ library(RSQLite.extfuns)
 library(ncdf4)
 library(reshape2)
 library(tcltk)
-
 ```
-
 
 ---
 ## Enter Inputs
@@ -40,8 +38,8 @@ VARIABLES <- c('tmax', 'tmin', 'prcp', 'dayl', 'srad', 'vp', 'swe')
 DAYMET_DIRECTORY <- 'F:/KPONEIL/SourceData/climate/DAYMET'
 
 # Name of the database with Daymet data paired to NHDPlus catchments
-#DATABASE_NAME <- 'DaymetByNHDPlusCatchments'
-DATABASE_NAME <- 'dummy'
+DATABASE_NAME <- 'DaymetByNHDPlusCatchments'
+#DATABASE_NAME <- 'dummy'
 
 # Catchment shapefile
 CATCHMENTS <- readShapePoly ( "C:/KPONEIL/gis/nhdPlusV2/stateCatchments/MA_Catchment.shp", proj4string=CRS(PROJ4.NHD))
@@ -50,7 +48,6 @@ CATCHMENTS <- readShapePoly ( "C:/KPONEIL/gis/nhdPlusV2/stateCatchments/MA_Catch
 source('C:/KPONEIL/GitHub/personal/dataProcessing/scripts/functions/daymetMosaicDownload.R')
 source('C:/KPONEIL/GitHub/personal/dataProcessing/scripts/functions/spatialAverageDaymet.R')
 ```
-
 
 ---
 ## Download the Daymet Mosaics
@@ -84,22 +81,41 @@ dataBase <- dbConnect(SQLite(), DATABASE_NAME)
 yearVars <- expand.grid(VARIABLES, seq(from = START_YEAR, to = END_YEAR, by = 1) )
 names(yearVars) <- c('variables', 'years')
 
-yearVars <- expand.grid(c('dayl', 'prcp', 'tmax', 'tmin'), 1980 )
-names(yearVars) <- c('variables', 'years')
 
 
+#51, 61
+
+x <- c()
 for ( i in 1:nrow(yearVars)){
   
   var  <- paste0(yearVars$variables[i])
   year <- paste0(yearVars$years[i])
   
   # Open the NetCDF file
-  NCDF <- nc_open(file.path(DAYMET_DIRECTORY, 'mosaics', paste0(var, '_',year , '.nc4')))    #netcdf           
+  NCDF <- try(nc_open(file.path(DAYMET_DIRECTORY, 'raw', paste0(var, '_',year , '.nc4'))))
+  
+  
+  #t <- try(pJohnson(.18, parms))
+  if("try-error" %in% class(NCDF)) {x <- c(x, paste0(yearVars$variables[i], '_', yearVars$years[i]))} else(nc_close(NCDF))
+  
+  #print(i)
+}
+
+
+
+
+
+for ( i in 52:nrow(yearVars)){
+  
+  var  <- paste0(yearVars$variables[i])
+  year <- paste0(yearVars$years[i])
+  
+  # Open the NetCDF file
+  NCDF <- nc_open(file.path(DAYMET_DIRECTORY, 'raw', paste0(var, '_',year , '.nc4')))    #netcdf           
   
   currentRecord <- spatialAverageDaymet(NetCDF = NCDF,
                        variable = var,
                        catchmentsShapefile = CATCHMENTS,
-                       proj4.NHD = CRS(PROJ4.NHD),
                        proj4.Daymet = CRS(PROJ4.DAYMET))
 
   nc_close(NCDF)
@@ -119,6 +135,7 @@ for ( i in 1:nrow(yearVars)){
                        append = TRUE,  
                        row.names = FALSE) )
   
+  print( paste0("Completed ", i, " of ", nrow(yearVars), "iterations."))
 }# End for loop
 
 ```

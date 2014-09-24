@@ -38,10 +38,10 @@ spatialAverageDaymet <- function(NetCDF, variable, catchmentsShapefile, proj4.Da
   
   # Read the variables for the subsetted netcdf
   print("Reading NetCDF values...")
-  var = ncvar_get( nc = NetCDF, varid="dayl",    start = c(minRow, minCol, 1), count = c(countx,county,365) )
   lat = ncvar_get( nc = NetCDF, varid="lat",     start = c(minRow, minCol),    count = c(countx,county) )
   lon = ncvar_get( nc = NetCDF, varid="lon",     start = c(minRow, minCol),    count = c(countx,county) )
   dOY = ncvar_get( nc = NetCDF, varid="yearday", start = 1,                    count = NetCDF$var$yearday$varsize  )
+  var = ncvar_get( nc = NetCDF, varid=variable,  start = c(minRow, minCol, 1), count = c(countx,county,length(dOY)) )
   
   # Correction for Daymet doy which starts at 0.
   dOY <- dOY + 1 
